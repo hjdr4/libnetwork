@@ -676,23 +676,46 @@ func (sb *sandbox) SetKey(basePath string) error {
 
 func (sb *sandbox) EnableService() error {
 	logrus.Debugf("EnableService %s START", sb.containerID)
+
 	for _, ep := range sb.getConnectedEndpoints() {
-		if ep.enableService(true) {
+		if !ep.isServiceEnabled() {
+			ep.enableService(true)
+
 			if err := ep.addServiceInfoToCluster(sb); err != nil {
 				ep.enableService(false)
-				return fmt.Errorf("could not update state for endpoint %s into cluster: %v", ep.Name(), err)
+				return fmt.Errorf("EnableService: could not update state for endpoint %s into cluster: %v", ep.Name(), err)
+			}
+
+			if err := ep.getNetwork().getController().updateToStore(ep); err != nil {
+				ep.enableService(false)
+				return fmt.Errorf("EnableService: could not update endpoint %s to store: %v", ep.Name(), err)
 			}
 		}
 	}
+
 	logrus.Debugf("EnableService %s DONE", sb.containerID)
 	return nil
 }
 
 func (sb *sandbox) DisableService() error {
 	logrus.Debugf("DisableService %s START", sb.containerID)
+
 	for _, ep := range sb.getConnectedEndpoints() {
-		ep.enableService(false)
+		if ep.isServiceEnabled() {
+			ep.enableService(false)
+
+			if err := ep.deleteServiceInfoFromCluster(sb, "DisableService"); err != nil {
+				ep.enableService(true)
+				return fmt.Errorf("DisableService: could not update state for endpoint %s into cluster: %v", ep.Name(), err)
+			}
+
+			if err := ep.getNetwork().getController().updateToStore(ep); err != nil {
+				ep.enableService(true)
+				return fmt.Errorf("DisableService: could not update endpoint %s to store: %v", ep.Name(), err)
+			}
+		}
 	}
+
 	logrus.Debugf("DisableService %s DONE", sb.containerID)
 	return nil
 }

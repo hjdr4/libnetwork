@@ -101,6 +101,7 @@ func (ep *endpoint) MarshalJSON() ([]byte, error) {
 	epMap["virtualIP"] = ep.virtualIP.String()
 	epMap["ingressPorts"] = ep.ingressPorts
 	epMap["svcAliases"] = ep.svcAliases
+	epMap["serviceEnabled"] = ep.serviceEnabled
 
 	return json.Marshal(epMap)
 }
@@ -199,6 +200,10 @@ func (ep *endpoint) UnmarshalJSON(b []byte) (err error) {
 
 	if vip, ok := epMap["virtualIP"]; ok {
 		ep.virtualIP = net.ParseIP(vip.(string))
+	}
+
+	if serviceEnabled, ok := epMap["serviceEnabled"]; ok {
+		ep.serviceEnabled = serviceEnabled.(bool)
 	}
 
 	sal, _ := json.Marshal(epMap["svcAliases"])
@@ -304,16 +309,19 @@ func (ep *endpoint) isAnonymous() bool {
 	return ep.anonymous
 }
 
-// enableService sets ep's serviceEnabled to the passed value if it's not in the
-// current state and returns true; false otherwise.
-func (ep *endpoint) enableService(state bool) bool {
+// enableService sets ep's serviceEnabled to the passed value
+func (ep *endpoint) enableService(state bool) {
 	ep.Lock()
 	defer ep.Unlock()
-	if ep.serviceEnabled != state {
-		ep.serviceEnabled = state
-		return true
-	}
-	return false
+	ep.serviceEnabled = state
+}
+
+// isServiceEnabled checks if service is enabled for the
+// endpoint
+func (ep *endpoint) isServiceEnabled() bool {
+	ep.Lock()
+	defer ep.Unlock()
+	return ep.serviceEnabled
 }
 
 func (ep *endpoint) needResolver() bool {
